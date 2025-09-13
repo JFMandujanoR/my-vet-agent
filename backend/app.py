@@ -13,9 +13,9 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI(title="Veterinary Assistant Agent")
 
-# Mount frontend static files at /static
+# Mount frontend static files at /frontend
 frontend_path = pathlib.Path(__file__).parent.parent / "frontend"
-app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend")
 
 
 class Query(BaseModel):
