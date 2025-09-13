@@ -44,7 +44,8 @@ async def run_agent(query: Query):
     try:
         # Use the new OpenAI 1.0+ API
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
+            # model="gpt-4",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": query.message}
