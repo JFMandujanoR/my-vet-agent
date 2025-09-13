@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import openai
 import os
+from openai import OpenAI
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI client with your API key
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI(title="Veterinary Assistant Agent")
 
@@ -23,11 +24,18 @@ async def run_agent(query: Query):
         "and technologies (like practice management systems, digital X-rays, lab software). "
         "Always clarify assumptions if data is missing, and provide step-by-step reasoning for calculations."
     )
-    completion = openai.ChatCompletion.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": query.message}
-        ]
-    )
-    return {"response": completion.choices[0].message["content"]}
+    
+    try:
+        # Use the new OpenAI 1.0+ API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query.message}
+            ]
+        )
+        return {"response": response.choices[0].message.content}
+
+    except Exception as e:
+        # Graceful error handling
+        return {"error": str(e)}
