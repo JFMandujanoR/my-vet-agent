@@ -13,28 +13,28 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = FastAPI(title="Veterinary Assistant Agent")
 
 
-# Serve frontend static files at /static
+
+# Serve frontend static files at root
 frontend_path = pathlib.Path(__file__).parent.parent / "frontend"
-app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
 
 
 # API model
-class ChatRequest(BaseModel):
+
+class Query(BaseModel):
     message: str
 
-# Serve index.html at root
-from fastapi.responses import FileResponse
 
 @app.get("/")
-async def serve_index():
-    return FileResponse(frontend_path / "index.html")
+async def root():
+    return {"message": "Veterinary Assistant Agent is running. Use POST /query to interact."}
 
 
 
 
 
-@app.post("/chat")
-async def chat(request: ChatRequest):
+@app.post("/query")
+async def run_agent(query: Query):
     system_prompt = (
         "You are a helpful assistant for veterinary medicine doctors. "
         "You can perform calculations (e.g., dog feeding amounts based on breed, weight, activity), "
@@ -48,9 +48,9 @@ async def chat(request: ChatRequest):
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": request.message}
+                {"role": "user", "content": query.message}
             ]
         )
-        return {"reply": response.choices[0].message.content}
+        return {"response": response.choices[0].message.content}
     except Exception as e:
-        return {"reply": f"Error: {str(e)}"}
+        return {"error": str(e)}
