@@ -12,13 +12,22 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI(title="Veterinary Assistant Agent")
 
-# Serve frontend static files at root
+
+# Serve frontend static files at /static
 frontend_path = pathlib.Path(__file__).parent.parent / "frontend"
-app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
+app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+
 
 # API model
 class ChatRequest(BaseModel):
     message: str
+
+# Serve index.html at root
+from fastapi.responses import FileResponse
+
+@app.get("/")
+async def serve_index():
+    return FileResponse(frontend_path / "index.html")
 
 
 
