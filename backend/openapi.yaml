@@ -1,0 +1,32 @@
+openapi: 3.0.1
+info:
+  title: Veterinary Assistant Agent API
+  version: 1.0.0
+servers:
+  - url: https://my-vet-agent.onrender.com
+paths:
+  /query:
+    post:
+      summary: Send a message to the veterinary assistant
+      operationId: queryVetAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Calculate food amount for a 25kg Labrador with moderate activity"
+      responses:
+        "200":
+          description: Agent response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+                    example: "A 25kg Labrador with moderate activity should receive about 1200 kcal/day..."
