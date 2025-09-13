@@ -1,19 +1,31 @@
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 import os
 from openai import OpenAI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import pathlib
 
 # Initialize OpenAI client with your API key
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+
 app = FastAPI(title="Veterinary Assistant Agent")
+
+# Mount frontend static files at /static
+frontend_path = pathlib.Path(__file__).parent.parent / "frontend"
+app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+
 
 class Query(BaseModel):
     message: str
 
+
+# Serve index.html at root
 @app.get("/")
-async def root():
-    return {"message": "Veterinary Assistant Agent is running. Use POST /query to interact."}
+async def serve_index():
+    return FileResponse(frontend_path / "index.html")
 
 @app.get("/check_key")
 async def check_key():
