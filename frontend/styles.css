@@ -1,3 +1,14 @@
+/* Disclaimer styles */
+.disclaimer {
+    margin-top: 18px;
+    text-align: center;
+    color: #228B22;
+    background: #e6f9e6;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.98rem;
+    box-shadow: 0 1px 4px rgba(34,139,34,0.05);
+}
 body {
     background: linear-gradient(135deg, #e6f9e6 0%, #b2f2b2 100%);
     font-family: 'Segoe UI', Arial, sans-serif;
