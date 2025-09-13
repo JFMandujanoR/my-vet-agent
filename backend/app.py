@@ -15,6 +15,10 @@ class Query(BaseModel):
 async def root():
     return {"message": "Veterinary Assistant Agent is running. Use POST /query to interact."}
 
+@app.get("/check_key")
+async def check_key():
+    return {"OPENAI_API_KEY_set": bool(os.getenv("OPENAI_API_KEY"))}
+
 @app.post("/query")
 async def run_agent(query: Query):
     system_prompt = (
