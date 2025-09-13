@@ -1,26 +1,31 @@
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 import os
 from openai import OpenAI
+from fastapi.staticfiles import StaticFiles
+import pathlib
+
 
 # Initialize OpenAI client with your API key
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI(title="Veterinary Assistant Agent")
 
-class Query(BaseModel):
+# Serve frontend static files at root
+frontend_path = pathlib.Path(__file__).parent.parent / "frontend"
+app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
+
+# API model
+class ChatRequest(BaseModel):
     message: str
 
-@app.get("/")
-async def root():
-    return {"message": "Veterinary Assistant Agent is running. Use POST /query to interact."}
 
-@app.get("/check_key")
-async def check_key():
-    return {"OPENAI_API_KEY_set": bool(os.getenv("OPENAI_API_KEY"))}
 
-@app.post("/query")
-async def run_agent(query: Query):
+
+
+@app.post("/chat")
+async def chat(request: ChatRequest):
     system_prompt = (
         "You are a helpful assistant for veterinary medicine doctors. "
         "You can perform calculations (e.g., dog feeding amounts based on breed, weight, activity), "
@@ -30,16 +35,13 @@ async def run_agent(query: Query):
     )
     
     try:
-        # Use the new OpenAI 1.0+ API
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query.message}
+                {"role": "user", "content": request.message}
             ]
         )
-        return {"response": response.choices[0].message.content}
-
+        return {"reply": response.choices[0].message.content}
     except Exception as e:
-        # Graceful error handling
-        return {"error": str(e)}
+        return {"reply": f"Error: {str(e)}"}
