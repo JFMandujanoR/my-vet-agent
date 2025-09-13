@@ -10,6 +10,10 @@ app = FastAPI(title="Veterinary Assistant Agent")
 class Query(BaseModel):
     message: str
 
+@app.get("/")
+async def root():
+    return {"message": "Veterinary Assistant Agent is running. Use POST /query to interact."}
+
 @app.post("/query")
 async def run_agent(query: Query):
     system_prompt = (
