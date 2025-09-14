@@ -39,10 +39,45 @@ async def run_agent(query: Query, request: Request, response: Response, session_
     user_msg = query.message.lower()
     # Get or create session memory
     memory = session_memory.get(session_id, {})
-    # Detect calorie intake calculation
-    cal_match = re.search(r'(calorie|calories|energy).*?(dog|cat|pet)?', user_msg)
-    food_match = re.search(r'(food amount|grams|how much food)', user_msg)
-    dose_match = re.search(r'(dose|dosage|mg/kg|medication)', user_msg)
+    # Detect calculation intent or missing info
+    cal_match = re.search(r'(calorie|calories|energy).*?(dog|cat|pet)?', user_msg) or memory.get('calorie_intent')
+    food_match = re.search(r'(food amount|grams|how much food)', user_msg) or memory.get('food_intent')
+    dose_match = re.search(r'(dose|dosage|mg/kg|medication)', user_msg) or memory.get('dose_intent')
+    # If user only provides missing info, check memory for previous intent
+    if not (cal_match or food_match or dose_match):
+        # Try to infer what the user is providing
+        if 'weight in kg' in memory.get('missing', []):
+            weight = re.search(r'(\d+(\.\d+)?)\s?kg', user_msg)
+            if weight:
+                memory['weight'] = weight
+                cal_match = memory.get('calorie_intent')
+        if 'species (dog or cat)' in memory.get('missing', []):
+            if 'dog' in user_msg:
+                memory['species'] = 'dog'
+                cal_match = memory.get('calorie_intent')
+            elif 'cat' in user_msg:
+                memory['species'] = 'cat'
+                cal_match = memory.get('calorie_intent')
+        if 'daily calories (kcal)' in memory.get('missing', []):
+            cal = re.search(r'(\d+(\.\d+)?)\s?kcal', user_msg)
+            if cal:
+                memory['calories_needed'] = cal
+                food_match = memory.get('food_intent')
+        if 'food energy (kcal/g)' in memory.get('missing', []):
+            kcal_per_g = re.search(r'(\d+(\.\d+)?)\s?kcal/g', user_msg)
+            if kcal_per_g:
+                memory['food_kcal_per_gram'] = kcal_per_g
+                food_match = memory.get('food_intent')
+        if 'weight (kg)' in memory.get('missing', []):
+            weight = re.search(r'(\d+(\.\d+)?)\s?kg', user_msg)
+            if weight:
+                memory['weight'] = weight
+                dose_match = memory.get('dose_intent')
+        if 'dosage (mg/kg)' in memory.get('missing', []):
+            dose = re.search(r'(\d+(\.\d+)?)\s?mg/kg', user_msg)
+            if dose:
+                memory['dosage_mg_per_kg'] = dose
+                dose_match = memory.get('dose_intent')
 
 
     # Example: "How many calories for a 10kg active dog?"
@@ -63,13 +98,15 @@ async def run_agent(query: Query, request: Request, response: Response, session_
         if not species:
             missing.append("species (dog or cat)")
         if missing:
-            # Store what info we have
+            # Store what info we have and intent
             if weight:
                 memory['weight'] = weight
             if activity:
                 memory['activity'] = activity
             if species:
                 memory['species'] = species
+            memory['calorie_intent'] = True
+            memory['missing'] = missing
             session_memory[session_id] = memory
             response.set_cookie(key="session_id", value=session_id)
             return {"response": f"To calculate calories, please provide: {', '.join(missing)}."}
@@ -94,6 +131,8 @@ async def run_agent(query: Query, request: Request, response: Response, session_
                 memory['calories_needed'] = cal
             if kcal_per_g:
                 memory['food_kcal_per_gram'] = kcal_per_g
+            memory['food_intent'] = True
+            memory['missing'] = missing
             session_memory[session_id] = memory
             response.set_cookie(key="session_id", value=session_id)
             return {"response": f"To calculate food amount, please provide: {', '.join(missing)}."}
@@ -119,6 +158,8 @@ async def run_agent(query: Query, request: Request, response: Response, session_
                 memory['weight'] = weight
             if dose:
                 memory['dosage_mg_per_kg'] = dose
+            memory['dose_intent'] = True
+            memory['missing'] = missing
             session_memory[session_id] = memory
             response.set_cookie(key="session_id", value=session_id)
             return {"response": f"To calculate dosage, please provide: {', '.join(missing)}."}
