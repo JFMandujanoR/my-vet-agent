@@ -212,16 +212,30 @@ async def run_agent(query: Query, request: Request, response: Response, session_
         "7) Confidence level (High/Moderate/Low) + why\n"
         "8) Recommended next steps (verify with label, contact specialist, etc.)"
     )
+    # --- Conversational memory for GPT ---
+    # Retrieve or initialize message history for this session
+    history = memory.get('gpt_history', [])
+    # Always start with system prompt
+    if not history:
+        history.append({"role": "system", "content": system_prompt})
+    # Add latest user message
+    history.append({"role": "user", "content": query.message})
+    memory['gpt_history'] = history
+    session_memory[session_id] = memory
+    response.set_cookie(key="session_id", value=session_id)
     try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query.message}
-            ]
+        gpt_response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=history
         )
-        if hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'message'):
-            return {"response": response.choices[0].message.content}
+        if hasattr(gpt_response, 'choices') and gpt_response.choices and hasattr(gpt_response.choices[0], 'message'):
+            # Add assistant reply to history
+            assistant_msg = gpt_response.choices[0].message.content
+            history.append({"role": "assistant", "content": assistant_msg})
+            memory['gpt_history'] = history
+            session_memory[session_id] = memory
+            response.set_cookie(key="session_id", value=session_id)
+            return {"response": assistant_msg}
         else:
             return {"response": "Sorry, the AI could not generate a response. Please try again later or check your API key."}
     except Exception as e:
