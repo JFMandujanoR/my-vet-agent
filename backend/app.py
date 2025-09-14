@@ -17,10 +17,12 @@ app = FastAPI(title="Veterinary Assistant Agent")
 frontend_path = pathlib.Path(__file__).parent.parent / "frontend"
 app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend")
 
+# Serve index.html at root
+@app.get("/")
+async def serve_index():
+    return FileResponse(frontend_path / "index.html")
 class Query(BaseModel):
     message: str
-
-
 
 @app.post("/query")
 async def run_agent(query: Query):
