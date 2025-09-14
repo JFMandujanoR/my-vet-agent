@@ -1,3 +1,13 @@
+from fastapi import Request, Response, Cookie, Depends
+import uuid
+# Session memory bank
+session_memory = {}
+
+def get_session_id(request: Request, session_id: str = Cookie(None)):
+    if not session_id:
+        # Generate a new session ID
+        session_id = str(uuid.uuid4())
+    return session_id
 import re
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -25,8 +35,10 @@ class Query(BaseModel):
     message: str
 
 @app.post("/query")
-async def run_agent(query: Query):
+async def run_agent(query: Query, request: Request, response: Response, session_id: str = Depends(get_session_id)):
     user_msg = query.message.lower()
+    # Get or create session memory
+    memory = session_memory.get(session_id, {})
     # Detect calorie intake calculation
     cal_match = re.search(r'(calorie|calories|energy).*?(dog|cat|pet)?', user_msg)
     food_match = re.search(r'(food amount|grams|how much food)', user_msg)
@@ -36,56 +48,85 @@ async def run_agent(query: Query):
     # Example: "How many calories for a 10kg active dog?"
     if cal_match:
         # Extract weight and activity
-        weight = re.search(r'(\d+(\.\d+)?)\s?kg', user_msg)
+        weight = re.search(r'(\d+(\.\d+)?)\s?kg', user_msg) or memory.get('weight')
         activity = 'normal'
         if 'active' in user_msg:
             activity = 'active'
         elif 'senior' in user_msg:
             activity = 'senior'
-        species = 'dog' if 'dog' in user_msg else ('cat' if 'cat' in user_msg else None)
+        else:
+            activity = memory.get('activity', 'normal')
+        species = 'dog' if 'dog' in user_msg else ('cat' if 'cat' in user_msg else memory.get('species'))
         missing = []
         if not weight:
             missing.append("weight in kg")
         if not species:
             missing.append("species (dog or cat)")
         if missing:
+            # Store what info we have
+            if weight:
+                memory['weight'] = weight
+            if activity:
+                memory['activity'] = activity
+            if species:
+                memory['species'] = species
+            session_memory[session_id] = memory
+            response.set_cookie(key="session_id", value=session_id)
             return {"response": f"To calculate calories, please provide: {', '.join(missing)}."}
-        weight_kg = float(weight.group(1))
+        weight_kg = float(weight.group(1)) if hasattr(weight, 'group') else float(weight)
         calories = calculate_calories(weight_kg, activity, species)
+        session_memory.pop(session_id, None)
+        response.set_cookie(key="session_id", value=session_id)
         return {"response": f"Estimated daily calories for a {activity} {species} weighing {weight_kg}kg: {calories} kcal/day."}
 
 
     # Example: "How much food for 300kcal/day if food is 3.5kcal/g?"
     if food_match:
-        cal = re.search(r'(\d+(\.\d+)?)\s?kcal', user_msg)
-        kcal_per_g = re.search(r'(\d+(\.\d+)?)\s?kcal/g', user_msg)
+        cal = re.search(r'(\d+(\.\d+)?)\s?kcal', user_msg) or memory.get('calories_needed')
+        kcal_per_g = re.search(r'(\d+(\.\d+)?)\s?kcal/g', user_msg) or memory.get('food_kcal_per_gram')
         missing = []
         if not cal:
             missing.append("daily calories (kcal)")
         if not kcal_per_g:
             missing.append("food energy (kcal/g)")
         if missing:
+            if cal:
+                memory['calories_needed'] = cal
+            if kcal_per_g:
+                memory['food_kcal_per_gram'] = kcal_per_g
+            session_memory[session_id] = memory
+            response.set_cookie(key="session_id", value=session_id)
             return {"response": f"To calculate food amount, please provide: {', '.join(missing)}."}
-        calories_needed = float(cal.group(1))
-        food_kcal_per_gram = float(kcal_per_g.group(1))
+        calories_needed = float(cal.group(1)) if hasattr(cal, 'group') else float(cal)
+        food_kcal_per_gram = float(kcal_per_g.group(1)) if hasattr(kcal_per_g, 'group') else float(kcal_per_g)
         grams = calculate_food_amount(calories_needed, food_kcal_per_gram)
+        session_memory.pop(session_id, None)
+        response.set_cookie(key="session_id", value=session_id)
         return {"response": f"Amount of food needed: {grams} grams/day for {calories_needed} kcal/day at {food_kcal_per_gram} kcal/g."}
 
 
     # Example: "What is the dose for 12kg dog at 5mg/kg?"
     if dose_match:
-        weight = re.search(r'(\d+(\.\d+)?)\s?kg', user_msg)
-        dose = re.search(r'(\d+(\.\d+)?)\s?mg/kg', user_msg)
+        weight = re.search(r'(\d+(\.\d+)?)\s?kg', user_msg) or memory.get('weight')
+        dose = re.search(r'(\d+(\.\d+)?)\s?mg/kg', user_msg) or memory.get('dosage_mg_per_kg')
         missing = []
         if not weight:
             missing.append("weight (kg)")
         if not dose:
             missing.append("dosage (mg/kg)")
         if missing:
+            if weight:
+                memory['weight'] = weight
+            if dose:
+                memory['dosage_mg_per_kg'] = dose
+            session_memory[session_id] = memory
+            response.set_cookie(key="session_id", value=session_id)
             return {"response": f"To calculate dosage, please provide: {', '.join(missing)}."}
-        weight_kg = float(weight.group(1))
-        dosage_mg_per_kg = float(dose.group(1))
+        weight_kg = float(weight.group(1)) if hasattr(weight, 'group') else float(weight)
+        dosage_mg_per_kg = float(dose.group(1)) if hasattr(dose, 'group') else float(dose)
         total_dose = calculate_dosage(weight_kg, dosage_mg_per_kg)
+        session_memory.pop(session_id, None)
+        response.set_cookie(key="session_id", value=session_id)
         return {"response": f"Total dosage: {total_dose} mg for {weight_kg}kg at {dosage_mg_per_kg} mg/kg."}
 
     # Otherwise, fallback to GPT
