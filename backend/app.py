@@ -1,8 +1,4 @@
-class Query(BaseModel):
-    message: str
 import re
-from .calculations import calculate_calories, calculate_food_amount, calculate_dosage
-
 from fastapi import FastAPI
 from pydantic import BaseModel
 import os
@@ -10,16 +6,19 @@ from openai import OpenAI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import pathlib
+from .calculations import calculate_calories, calculate_food_amount, calculate_dosage
 
 # Initialize OpenAI client with your API key
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 
 app = FastAPI(title="Veterinary Assistant Agent")
 
 # Mount frontend static files at /frontend
 frontend_path = pathlib.Path(__file__).parent.parent / "frontend"
 app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend")
+
+class Query(BaseModel):
+    message: str
 
 
 
