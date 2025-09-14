@@ -138,20 +138,9 @@ async def run_agent(query: Query):
                 {"role": "user", "content": query.message}
             ]
         )
-        return {"response": response.choices[0].message.content}
+        if hasattr(response, 'choices') and response.choices and hasattr(response.choices[0], 'message'):
+            return {"response": response.choices[0].message.content}
+        else:
+            return {"response": "Sorry, the AI could not generate a response. Please try again later or check your API key."}
     except Exception as e:
-        return {"error": str(e)}
-        # Use the new OpenAI 1.0+ API
-        response = client.chat.completions.create(
-            # model="gpt-3.5-turbo",
-            model="gpt-4-1106-preview",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query.message}
-            ]
-        )
-        return {"response": response.choices[0].message.content}
-
-    except Exception as e:
-        # Graceful error handling
-        return {"error": str(e)}
+        return {"response": f"Sorry, there was an error with the AI service: {str(e)}"}
