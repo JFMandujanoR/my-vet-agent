@@ -1,3 +1,5 @@
+class Query(BaseModel):
+    message: str
 import re
 from .calculations import calculate_calories, calculate_food_amount, calculate_dosage
 
