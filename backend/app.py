@@ -1,3 +1,5 @@
+import re
+from .calculations import calculate_calories, calculate_food_amount, calculate_dosage
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -18,21 +20,72 @@ frontend_path = pathlib.Path(__file__).parent.parent / "frontend"
 app.mount("/frontend", StaticFiles(directory=str(frontend_path)), name="frontend")
 
 
-class Query(BaseModel):
-    message: str
-
-
-# Serve index.html at root
-@app.get("/")
-async def serve_index():
-    return FileResponse(frontend_path / "index.html")
-
-@app.get("/check_key")
-async def check_key():
-    return {"OPENAI_API_KEY_set": bool(os.getenv("OPENAI_API_KEY"))}
 
 @app.post("/query")
 async def run_agent(query: Query):
+    user_msg = query.message.lower()
+    # Detect calorie intake calculation
+    cal_match = re.search(r'(calorie|calories|energy).*?(dog|cat|pet)?', user_msg)
+    food_match = re.search(r'(food amount|grams|how much food)', user_msg)
+    dose_match = re.search(r'(dose|dosage|mg/kg|medication)', user_msg)
+
+
+    # Example: "How many calories for a 10kg active dog?"
+    if cal_match:
+        # Extract weight and activity
+        weight = re.search(r'(\d+(\.\d+)?)\s?kg', user_msg)
+        activity = 'normal'
+        if 'active' in user_msg:
+            activity = 'active'
+        elif 'senior' in user_msg:
+            activity = 'senior'
+        species = 'dog' if 'dog' in user_msg else ('cat' if 'cat' in user_msg else None)
+        missing = []
+        if not weight:
+            missing.append("weight in kg")
+        if not species:
+            missing.append("species (dog or cat)")
+        if missing:
+            return {"response": f"To calculate calories, please provide: {', '.join(missing)}."}
+        weight_kg = float(weight.group(1))
+        calories = calculate_calories(weight_kg, activity, species)
+        return {"response": f"Estimated daily calories for a {activity} {species} weighing {weight_kg}kg: {calories} kcal/day."}
+
+
+    # Example: "How much food for 300kcal/day if food is 3.5kcal/g?"
+    if food_match:
+        cal = re.search(r'(\d+(\.\d+)?)\s?kcal', user_msg)
+        kcal_per_g = re.search(r'(\d+(\.\d+)?)\s?kcal/g', user_msg)
+        missing = []
+        if not cal:
+            missing.append("daily calories (kcal)")
+        if not kcal_per_g:
+            missing.append("food energy (kcal/g)")
+        if missing:
+            return {"response": f"To calculate food amount, please provide: {', '.join(missing)}."}
+        calories_needed = float(cal.group(1))
+        food_kcal_per_gram = float(kcal_per_g.group(1))
+        grams = calculate_food_amount(calories_needed, food_kcal_per_gram)
+        return {"response": f"Amount of food needed: {grams} grams/day for {calories_needed} kcal/day at {food_kcal_per_gram} kcal/g."}
+
+
+    # Example: "What is the dose for 12kg dog at 5mg/kg?"
+    if dose_match:
+        weight = re.search(r'(\d+(\.\d+)?)\s?kg', user_msg)
+        dose = re.search(r'(\d+(\.\d+)?)\s?mg/kg', user_msg)
+        missing = []
+        if not weight:
+            missing.append("weight (kg)")
+        if not dose:
+            missing.append("dosage (mg/kg)")
+        if missing:
+            return {"response": f"To calculate dosage, please provide: {', '.join(missing)}."}
+        weight_kg = float(weight.group(1))
+        dosage_mg_per_kg = float(dose.group(1))
+        total_dose = calculate_dosage(weight_kg, dosage_mg_per_kg)
+        return {"response": f"Total dosage: {total_dose} mg for {weight_kg}kg at {dosage_mg_per_kg} mg/kg."}
+
+    # Otherwise, fallback to GPT
     system_prompt = (
         "You are a highly reliable, evidence-focused assistant for veterinary medicine professionals. "
         "Prioritize accuracy, transparency, and patient safety above all. "
@@ -74,9 +127,17 @@ async def run_agent(query: Query):
         "7) Confidence level (High/Moderate/Low) + why\n"
         "8) Recommended next steps (verify with label, contact specialist, etc.)"
     )
-
-    
     try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query.message}
+            ]
+        )
+        return {"response": response.choices[0].message.content}
+    except Exception as e:
+        return {"error": str(e)}
         # Use the new OpenAI 1.0+ API
         response = client.chat.completions.create(
             # model="gpt-3.5-turbo",
